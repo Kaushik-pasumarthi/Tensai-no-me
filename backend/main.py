@@ -90,7 +90,14 @@ async def websocket_scan(websocket: WebSocket):
 
             # 2. Fire the REAL data back to the frontend
             if result["match_found"]:
-                official_time_ms = (result["matched_frame_number"] / 30) * 1000
+                # Dynamically get the exact FPS of the official video
+                off_cap = cv2.VideoCapture("static/official_source.mp4")
+                off_fps = off_cap.get(cv2.CAP_PROP_FPS)
+                if off_fps == 0: off_fps = 30  # Fallback
+                off_cap.release()
+
+                # Calculate precise millisecond timestamp
+                official_time_ms = (result["matched_frame_number"] / off_fps) * 1000
                 await websocket.send_json({
                     "match": True,
                     "confidence": float(result['confidence']),  # Send the raw math float
