@@ -1,0 +1,7 @@
+*.mp4
+backend/temp_videos/
+backend/temp_frames/
+
+backend/static/
+backend/training_data/
+*.pth
