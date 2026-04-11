@@ -26,27 +26,49 @@ class VideoMatcher:
             self.current_id += 1
         print(f"Added {len(frame_embeddings)} frames from '{video_name}' to the vault.")
 
-    def query_suspect_frame(self, suspect_embedding, threshold=0.65):
+    def query_suspect_frame(self, suspect_embedding, base_min_threshold=0.65):
         norm_embedding = self._normalize(suspect_embedding)
-        distances, indices = self.index.search(norm_embedding, k=1)
 
-        best_score = float(distances[0][0])
+        # 1. Fetch the top 10 nearest neighbors
+        distances, indices = self.index.search(norm_embedding, k=10)
+
+        # 2. Filter out invalid FAISS padding (in case vault has < 10 frames)
+        valid_scores = [float(distances[0][i]) for i in range(len(indices[0])) if indices[0][i] != -1]
+
+        if not valid_scores:
+            return {"match_found": False, "confidence": 0.0, "adaptive_threshold": base_min_threshold}
+
+        best_score = valid_scores[0]
         best_match_id = int(indices[0][0])
 
-        if best_score > threshold and best_match_id != -1:
+        # 3. DYNAMIC THRESHOLD LOGIC: Separate Signal from Noise
+        if len(valid_scores) > 1:
+            # Calculate background noise using only the remaining neighbors (exclude the #1 best match)
+            noise_scores = valid_scores[1:]
+            mean_noise = np.mean(noise_scores)
+            std_noise = np.std(noise_scores)
+
+            # Threshold is the background noise average + 1 standard deviation
+            adaptive_threshold = float(max(base_min_threshold, mean_noise + (1.0 * std_noise)))
+        else:
+            adaptive_threshold = float(base_min_threshold)
+
+        # 4. Final Verdict
+        if best_score > adaptive_threshold and best_match_id != -1:
             match_info = self.metadata[best_match_id]
             return {
                 "match_found": True,
                 "confidence": best_score,
+                "adaptive_threshold": adaptive_threshold,
                 "matched_video": match_info["video_name"],
                 "matched_frame_number": match_info["frame_number"]
             }
 
         return {
             "match_found": False,
+            "adaptive_threshold": adaptive_threshold,
             "confidence": best_score if best_match_id != -1 else 0.0
         }
-
     def temporal_sequence_alignment(self, suspect_embeddings, reference_embeddings):
         n = len(suspect_embeddings)
         m = len(reference_embeddings)

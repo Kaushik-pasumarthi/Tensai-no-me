@@ -11,6 +11,7 @@ import json
 from extractor import extract_frames
 from embedder import VideoFingerprinter
 from matcher import VideoMatcher
+import sqlite3
 
 app = FastAPI()
 
@@ -34,9 +35,28 @@ matcher = VideoMatcher(vector_dimension=2048)
 OFFICIAL_FPS = 30.0  # Global variable to hold true FPS
 print("✅ AI Detective System Online.")
 
+# --- INITIALIZE DATABASE ---
+conn = sqlite3.connect("violations.db", check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute('''CREATE TABLE IF NOT EXISTS violations
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                   vault_asset TEXT,
+                   matched_frame INTEGER,
+                   confidence REAL,
+                   source_type TEXT)''')
+conn.commit()
+print("✅ Digital Forensics Database Online.")
+
+
 @app.post("/vault/upload/")
 async def upload_official_video(file: UploadFile = File(...)):
     global OFFICIAL_FPS
+    global matcher  # <--- Bring in the global AI database
+
+    # REBOOT THE AI MEMORY: Wipe out any previous videos
+    matcher = VideoMatcher(vector_dimension=2048)
+
     vid_path = f"static/official_source.mp4"
     frame_dir = f"temp_frames/official_vault"
 
@@ -57,10 +77,12 @@ async def upload_official_video(file: UploadFile = File(...)):
 
     return {"status": "Success", "message": f"Asset secured at {OFFICIAL_FPS} FPS."}
 
+
 @app.websocket("/ws/scan/")
 async def websocket_scan(websocket: WebSocket):
     global OFFICIAL_FPS
     await websocket.accept()
+    session_logged = False  # <--- Add this flag
 
     try:
         while True:
@@ -91,18 +113,31 @@ async def websocket_scan(websocket: WebSocket):
                 neural_b64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
 
                 vec = fingerprinter.get_embedding(temp_frame_path)
-                result = matcher.query_suspect_frame(vec, threshold=0.65)
+                result = matcher.query_suspect_frame(vec, base_min_threshold=0.65)
 
                 raw_confidence = float(result.get('confidence', 0.0))
 
                 if result.get("match_found"):
-                    # The extractor pulls 1 frame per second.
-                    # Therefore, FAISS index 5 = exactly 5.0 seconds into the video.
-                    official_time_ms = result["matched_frame_number"] * 1000.0
+
+                    # --- CORRECT MATH APPLIED HERE ---
+                    # 1 extracted frame = exactly 1 full second
+                    official_time_ms = float(result["matched_frame_number"] * 1000.0)
+
+                    # --- WRITE TO DATABASE ONCE PER SESSION ---
+                    if not session_logged:
+                        cursor.execute(
+                            "INSERT INTO violations (vault_asset, matched_frame, confidence, source_type) VALUES (?, ?, ?, ?)",
+                            (result["matched_video"], result["matched_frame_number"], raw_confidence,
+                             "INTERNET_STREAM"))
+                        conn.commit()
+                        session_logged = True
+                        print(
+                            f"🚨 VIOLATION LOGGED: {result['matched_video']} at Frame {result['matched_frame_number']}")
 
                     await websocket.send_json({
                         "match": True,
                         "confidence": raw_confidence,
+                        "threshold": result.get("adaptive_threshold", 0.65),  # Safely grab dynamic threshold
                         "official_seek_time": official_time_ms,
                         "matched_frame": result["matched_frame_number"],
                         "neural_vision": neural_b64
@@ -111,6 +146,7 @@ async def websocket_scan(websocket: WebSocket):
                     await websocket.send_json({
                         "match": False,
                         "confidence": raw_confidence,
+                        "threshold": result.get("adaptive_threshold", 0.65),  # <--- ADD THIS LINE
                         "neural_vision": neural_b64
                     })
 
