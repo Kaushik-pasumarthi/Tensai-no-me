@@ -7,12 +7,14 @@ import cv2
 import numpy as np
 import base64
 import json
-
+from pydantic import BaseModel
+import yt_dlp
 from extractor import extract_frames
 from embedder import VideoFingerprinter
 from matcher import VideoMatcher
 import sqlite3
-
+class YTRequest(BaseModel):
+    url: str
 app = FastAPI()
 
 os.makedirs("temp_videos", exist_ok=True)
@@ -156,3 +158,68 @@ async def websocket_scan(websocket: WebSocket):
 
     except WebSocketDisconnect:
         print("UI stream closed.")
+
+
+@app.post("/scan/youtube/")
+async def scan_youtube_url(req: YTRequest):
+    global matcher, fingerprinter
+
+    ydl_opts = {'format': 'best[ext=mp4]', 'quiet': True}
+    try:
+        # 1. Bypass Google's CORS and rip the raw stream URL
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(req.url, download=False)
+            stream_url = info['url']
+
+        # 2. Connect OpenCV directly to the web stream
+        cap = cv2.VideoCapture(stream_url)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        if fps <= 0 or fps is None:
+            fps = 30.0
+
+        frame_skip = int(fps)  # Jump 1 full second at a time to scan fast
+
+        frame_count = 0
+        max_seconds_to_scan = 30  # For demo purposes, only scan the first 30 seconds
+
+        # 3. Scan the stream headlessly
+        while cap.isOpened() and frame_count < max_seconds_to_scan:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count * frame_skip)
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            temp_path = "temp_frames/yt_temp.jpg"
+            cv2.imwrite(temp_path, frame)
+
+            # Pass through ResNet50 and FAISS
+            vec = fingerprinter.get_embedding(temp_path)
+            result = matcher.query_suspect_frame(vec, base_min_threshold=0.85)
+            if result.get("match_found"):
+                cap.release()
+
+                # Log the YouTube violation to the Database!
+                cursor.execute(
+                    "INSERT INTO violations (vault_asset, matched_frame, confidence, source_type) VALUES (?, ?, ?, ?)",
+                    (result["matched_video"], result["matched_frame_number"], float(result["confidence"]),
+                     "YOUTUBE_CRAWLER")
+                )
+                conn.commit()
+                print(f"🚨 YOUTUBE VIOLATION LOGGED: {req.url}")
+
+                return {
+                    "status": "Match Found",
+                    "youtube_second": frame_count,
+                    "vault_asset": result["matched_video"],
+                    "vault_frame": result["matched_frame_number"],
+                    "confidence": float(result["confidence"])
+                }
+
+            frame_count += 1
+
+        cap.release()
+        return {"status": "No Match", "message": f"Scanned first {max_seconds_to_scan} seconds. No piracy detected."}
+
+    except Exception as e:
+        print(f"YouTube Scan Error: {str(e)}")
+        return {"error": str(e)}
