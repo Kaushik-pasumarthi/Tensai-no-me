@@ -84,7 +84,8 @@ async def upload_official_video(file: UploadFile = File(...)):
 async def websocket_scan(websocket: WebSocket):
     global OFFICIAL_FPS
     await websocket.accept()
-    session_logged = False  # <--- Add this flag
+    db_row_id = None
+    peak_confidence = 0.0  # <--- Add this flag
 
     try:
         while True:
@@ -99,6 +100,10 @@ async def websocket_scan(websocket: WebSocket):
                 break
 
             try:
+                # SAFETY CHECK: Ignore setup messages
+                if "frame" not in data:
+                    continue
+
                 encoded_data = data["frame"].split(',')[1]
                 nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
                 img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -114,10 +119,29 @@ async def websocket_scan(websocket: WebSocket):
                 _, buffer = cv2.imencode('.jpg', small)
                 neural_b64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
 
+                # 1. Standard Scan
                 vec = fingerprinter.get_embedding(temp_frame_path)
                 result = matcher.query_suspect_frame(vec, base_min_threshold=0.65)
 
+                # --- LAYER 3: LIVE MIRROR BYPASS ---
+                # If standard scan fails, pirates might have flipped the video horizontally!
+                if not result.get("match_found"):
+                    flipped_img = cv2.flip(img, 1)  # Flip horizontally
+                    flipped_path = "temp_frames/live_mem_frame_flipped.jpg"
+                    cv2.imwrite(flipped_path, flipped_img)
+
+                    # Scan the flipped frame
+                    flipped_vec = fingerprinter.get_embedding(flipped_path)
+                    flipped_result = matcher.query_suspect_frame(flipped_vec, base_min_threshold=0.65)
+
+                    # If the flipped frame is a match, override the result!
+                    if flipped_result.get("match_found"):
+                        result = flipped_result
+                        print("🔄 MIRROR BYPASS ENGAGED: Caught flipped pirate stream!")
+                # -----------------------------------
+
                 raw_confidence = float(result.get('confidence', 0.0))
+
 
                 if result.get("match_found"):
 
@@ -126,16 +150,30 @@ async def websocket_scan(websocket: WebSocket):
                     official_time_ms = float(result["matched_frame_number"] * 1000.0)
 
                     # --- WRITE TO DATABASE ONCE PER SESSION ---
-                    if not session_logged:
+                    # --- SMART PEAK SCORE DB LOGGING ---
+                    if db_row_id is None:
+                        # First breach! Create the row instantly (Early Warning)
                         cursor.execute(
                             "INSERT INTO violations (vault_asset, matched_frame, confidence, source_type) VALUES (?, ?, ?, ?)",
-                            (result["matched_video"], result["matched_frame_number"], raw_confidence,
-                             "INTERNET_STREAM"))
+                            (result["matched_video"], result["matched_frame_number"], raw_confidence, "INTERNET_STREAM")
+                        )
                         conn.commit()
-                        session_logged = True
+                        db_row_id = cursor.lastrowid  # Save the DB row ID
+                        peak_confidence = raw_confidence
                         print(
-                            f"🚨 VIOLATION LOGGED: {result['matched_video']} at Frame {result['matched_frame_number']}")
+                            f"🚨 INITIAL VIOLATION LOGGED: {result['matched_video']} at Frame {result['matched_frame_number']} (Score: {raw_confidence:.3f})")
 
+                    elif raw_confidence > peak_confidence:
+                        # We found a better match! Update the exact same row in the DB
+                        peak_confidence = raw_confidence
+                        cursor.execute(
+                            "UPDATE violations SET matched_frame = ?, confidence = ? WHERE id = ?",
+                            (result["matched_frame_number"], peak_confidence, db_row_id)
+                        )
+                        conn.commit()
+                        print(
+                            f"📈 PEAK SCORE UPDATED in DB: {peak_confidence:.3f} at Frame {result['matched_frame_number']}")
+                    # -----------------------------------
                     await websocket.send_json({
                         "match": True,
                         "confidence": raw_confidence,
@@ -193,8 +231,23 @@ async def scan_youtube_url(req: YTRequest):
             cv2.imwrite(temp_path, frame)
 
             # Pass through ResNet50 and FAISS
+            # 1. Standard Scan
             vec = fingerprinter.get_embedding(temp_path)
             result = matcher.query_suspect_frame(vec, base_min_threshold=0.85)
+
+            # --- LAYER 3: HEADLESS MIRROR BYPASS ---
+            if not result.get("match_found"):
+                flipped_frame = cv2.flip(frame, 1)
+                flipped_path = "temp_frames/yt_temp_flipped.jpg"
+                cv2.imwrite(flipped_path, flipped_frame)
+
+                flipped_vec = fingerprinter.get_embedding(flipped_path)
+                flipped_result = matcher.query_suspect_frame(flipped_vec, base_min_threshold=0.85)
+
+                if flipped_result.get("match_found"):
+                    result = flipped_result
+                    print("🔄 YOUTUBE CRAWLER MIRROR BYPASS ENGAGED!")
+            # ---------------------------------------
             if result.get("match_found"):
                 cap.release()
 
