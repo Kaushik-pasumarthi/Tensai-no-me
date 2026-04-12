@@ -205,9 +205,12 @@ async def scan_youtube_url(req: YTRequest):
     ydl_opts = {'format': 'best[ext=mp4]', 'quiet': True}
     try:
         # 1. Bypass Google's CORS and rip the raw stream URL
+        # 1. Bypass Google's CORS and rip the raw stream URL + Metadata
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(req.url, download=False)
             stream_url = info['url']
+            video_title = info.get('title', 'Unknown Title')
+            channel_name = info.get('uploader', 'Unknown Channel')
 
         # 2. Connect OpenCV directly to the web stream
         cap = cv2.VideoCapture(stream_url)
@@ -265,7 +268,9 @@ async def scan_youtube_url(req: YTRequest):
                     "youtube_second": frame_count,
                     "vault_asset": result["matched_video"],
                     "vault_frame": result["matched_frame_number"],
-                    "confidence": float(result["confidence"])
+                    "confidence": float(result["confidence"]),
+                    "video_title": video_title,
+                    "channel_name": channel_name
                 }
 
             frame_count += 1
@@ -275,4 +280,104 @@ async def scan_youtube_url(req: YTRequest):
 
     except Exception as e:
         print(f"YouTube Scan Error: {str(e)}")
+        return {"error": str(e)}
+
+
+class YTSearchRequest(BaseModel):
+    query: str
+
+
+@app.post("/scan/youtube/search/")
+async def scan_youtube_search(req: YTSearchRequest):
+    global matcher, fingerprinter
+
+    # ytsearch3 means "Search YouTube and grab the top 3 results"
+    search_query = f"ytsearch3:{req.query}"
+
+    # Phase 1: Extract the URLs of the top 3 videos without downloading them
+    ydl_opts_search = {'extract_flat': True, 'quiet': True}
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts_search) as ydl:
+            info = ydl.extract_info(search_query, download=False)
+            if 'entries' not in info:
+                return {"status": "Error", "message": "No results found."}
+            entries = info['entries']
+
+        results_summary = []
+
+        # Phase 2: Loop through the top 3 videos and scan the first 15 seconds of each
+        for index, entry in enumerate(entries):
+            video_url = entry.get('url')
+            video_title = entry.get('title', 'Unknown')
+
+            if not video_url:
+                continue
+
+            # Get the actual MP4 stream link
+            with yt_dlp.YoutubeDL({'format': 'best[ext=mp4]', 'quiet': True}) as ydl_stream:
+                try:
+                    stream_info = ydl_stream.extract_info(video_url, download=False)
+                    stream_url = stream_info['url']
+                except:
+                    continue  # Skip if stream is locked
+
+            cap = cv2.VideoCapture(stream_url)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            if fps <= 0 or fps is None: fps = 30.0
+            frame_skip = int(fps)
+            frame_count = 0
+            max_seconds = 25  # Scan only 15 seconds per video for speed
+
+            match_found_in_video = False
+
+            while cap.isOpened() and frame_count < max_seconds:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count * frame_skip)
+                ret, frame = cap.read()
+                if not ret: break
+
+                temp_path = f"temp_frames/yt_sweep_{index}.jpg"
+                cv2.imwrite(temp_path, frame)
+
+                # Scan & Mirror Bypass
+                vec = fingerprinter.get_embedding(temp_path)
+                result = matcher.query_suspect_frame(vec, base_min_threshold=0.85)
+
+                if not result.get("match_found"):
+                    flipped = cv2.flip(frame, 1)
+                    cv2.imwrite(temp_path, flipped)
+                    flipped_vec = fingerprinter.get_embedding(temp_path)
+                    flipped_result = matcher.query_suspect_frame(flipped_vec, base_min_threshold=0.85)
+                    if flipped_result.get("match_found"): result = flipped_result
+
+                if result.get("match_found"):
+                    # Log piracy to DB
+                    cursor.execute(
+                        "INSERT INTO violations (vault_asset, matched_frame, confidence, source_type) VALUES (?, ?, ?, ?)",
+                        (result["matched_video"], result["matched_frame_number"], float(result["confidence"]),
+                         "YOUTUBE_SWEEP")
+                    )
+                    conn.commit()
+                    results_summary.append({
+                        "status": "🚨 DETECTED",
+                        "confidence": float(result["confidence"]),
+                        "title": video_title,  # <--- ADD THIS
+                        "channel": entry.get('uploader', 'Unknown')  # <--- ADD THIS
+                    })
+                    match_found_in_video = True
+                    break  # Stop scanning this video, move to the next one
+
+                cap.release()
+
+                if not match_found_in_video:
+                    results_summary.append({
+                        "status": "✅ CLEAR",
+                        "title": video_title,  # <--- ADD THIS
+                        "channel": entry.get('uploader', 'Unknown')  # <--- ADD THIS
+                    })
+
+        return {"status": "Sweep Complete", "results": results_summary}
+
+    except Exception as e:
+        print(f"Sweep Error: {str(e)}")
         return {"error": str(e)}
