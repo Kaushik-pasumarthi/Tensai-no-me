@@ -48,7 +48,7 @@ Our architecture is split into a scalable, serverless backend and an enterprise-
 
 ### 1. Clone the Repository
 ```bash
-git clone [https://github.com/yourusername/sportshield-ai.git](https://github.com/yourusername/sportshield-ai.git)
+git clone [https://github.com/Kaushik-pasumarthi/Tensai-no-me/tree/final_1.git)
 cd sportshield-ai
 
 ### 2. Backend Setup (FastAPI + AI Engine)
