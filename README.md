@@ -30,7 +30,7 @@ Our architecture is split into a scalable, serverless backend and an enterprise-
 * **PyTorch & Torchvision:** Core Deep Learning engine (ResNet50).
 * **FAISS (Meta):** Millisecond L2 Distance Matrix calculation for vector similarity.
 * **OpenCV:** Computer vision preprocessing.
-* **SQLite:** Ephemeral telemetry and incident logging.
+* **PostgreSQL:** Ephemeral telemetry and incident logging.
 * **yt-dlp:** Headless swarm bot for stream extraction.
 
 **Frontend (React.js)**
@@ -39,7 +39,7 @@ Our architecture is split into a scalable, serverless backend and an enterprise-
 
 **Cloud & AI (Google Cloud)**
 * **Google Cloud Run:** Scale-to-zero serverless containerization.
-* **Google Cloud Storage:** Persistent storage for SQLite state and FAISS indices.
+* **Google Cloud Storage:** Persistent storage for PostgreSQL state and FAISS indices.
 * **Google Gemini API:** Generative legal forensics and automated DMCA drafting.
 
 ---
