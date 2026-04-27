@@ -65,7 +65,7 @@ function App() {
     formData.append('file', vaultFile);
 
     try {
-      const response = await axios.post('http://127.0.0.1:8000/vault/upload/', formData, {
+      const response = await axios.post('https://thecapybara-sportshield-engine.hf.space/vault/upload/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       addLog(`VAULT LOCKED: ${response.data.message}`, "info");
@@ -90,7 +90,7 @@ function App() {
     suspectPlayerRef.current.load();
     officialPlayerRef.current.load();
 
-    socketRef.current = new WebSocket("ws://127.0.0.1:8000/ws/scan/");
+    socketRef.current = new WebSocket("wss://thecapybara-sportshield-engine.hf.space/ws/scan/");
 
     socketRef.current.onopen = () => {
         addLog("SYSTEM SECURED: Establishing bi-directional tensor stream...", "process");
@@ -228,7 +228,7 @@ const scanYouTube = async () => {
     setYtResult("Bypassing CORS & extracting headless stream...");
 
     try {
-        const response = await fetch("http://127.0.0.1:8000/scan/youtube/", {
+        const response = await fetch("https://thecapybara-sportshield-engine.hf.space/scan/youtube/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url: ytUrl })
@@ -258,7 +258,7 @@ const sweepYouTube = async () => {
     setYtResult(`Deploying bots for: "${ytKeyword}"...\nScanning top 3 results...`);
 
     try {
-        const response = await fetch("http://127.0.0.1:8000/scan/youtube/search/", {
+        const response = await fetch("https://thecapybara-sportshield-engine.hf.space/scan/youtube/search/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query: ytKeyword })
@@ -427,7 +427,7 @@ return (
                     <h3 style={{ textAlign: 'center' }}>REFERENCE ASSET</h3>
                     <video ref={officialPlayerRef} muted style={{ width: '100%', borderRadius: '4px', border: '1px solid #334155' }}>
                       {isVaultLocked && (
-                          <source src={`http://localhost:8000/static/official_source.mp4?t=${vaultTimestamp}`} type="video/mp4" />
+                          <source src={`https://thecapybara-sportshield-engine.hf.space/static/official_source.mp4?t=${vaultTimestamp}`} type="video/mp4" />
                       )}
                     </video>
                   </div>
