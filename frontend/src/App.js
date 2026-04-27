@@ -288,9 +288,22 @@ const sweepYouTube = async () => {
   };
 return (
     <div className="dashboard">
-      <header className="header" style={{ marginBottom: '20px' }}>
-        <h1>Digital Asset Protection Radar</h1>
-        <p style={{ color: '#94a3b8', margin: '5px 0' }}>AI-Powered Spatiotemporal Fingerprinting Network</p>
+      <header className="header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ margin: '0' }}>Digital Asset Protection Radar</h1>
+          <p style={{ color: '#94a3b8', margin: '5px 0' }}>AI-Powered Spatiotemporal Fingerprinting Network</p>
+        </div>
+        
+        {/* --- KIRO WEBSITE REDIRECT BUTTON --- */}
+        <a 
+          href="https://sport-shield-ai.onrender.com/" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="btn"
+          style={{ textDecoration: 'none', background: '#eab308', color: '#000', fontWeight: 'bold', padding: '10px 20px', border: '1px solid #eab308' }}
+        >
+          Return to Kiro ↗
+        </a>
       </header>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '0 20px 20px 20px' }}>
