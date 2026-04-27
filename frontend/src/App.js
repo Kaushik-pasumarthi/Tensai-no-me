@@ -288,21 +288,32 @@ const sweepYouTube = async () => {
   };
 return (
     <div className="dashboard">
-      <header className="header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+{/* --- REVISED HEADER: TITLE ON LEFT, SMALL BUTTON ON RIGHT --- */}
+      <header className="header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px' }}>
         <div>
           <h1 style={{ margin: '0' }}>Digital Asset Protection Radar</h1>
           <p style={{ color: '#94a3b8', margin: '5px 0' }}>AI-Powered Spatiotemporal Fingerprinting Network</p>
         </div>
         
-        {/* --- KIRO WEBSITE REDIRECT BUTTON --- */}
+        {/* --- SMALL, RIGHT-ALIGNED KIRO REDIRECT BUTTON --- */}
         <a 
-          href="https://sport-shield-ai.onrender.com/" 
+          href="https://YOUR-KIRO-WEBSITE-URL.com" 
           target="_blank" 
           rel="noopener noreferrer"
           className="btn"
-          style={{ textDecoration: 'none', background: '#eab308', color: '#000', fontWeight: 'bold', padding: '10px 20px', border: '1px solid #eab308' }}
+          style={{ 
+              display: 'inline-block',
+              textDecoration: 'none', 
+              background: '#eab308', 
+              color: '#000', 
+              fontWeight: 'bold', 
+              padding: '10px 20px', 
+              borderRadius: '4px',
+              fontSize: '14px',
+              border: '1px solid #eab308'
+          }}
         >
-          Return to Kiro ↗
+          Return to Dashboard ↗
         </a>
       </header>
 
