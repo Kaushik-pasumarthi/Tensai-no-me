@@ -289,31 +289,34 @@ const sweepYouTube = async () => {
 return (
     <div className="dashboard">
 {/* --- REVISED HEADER: TITLE ON LEFT, SMALL BUTTON ON RIGHT --- */}
-      <header className="header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px' }}>
-        <div>
+      <header className="header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ flexShrink: 0 }}>
           <h1 style={{ margin: '0' }}>Digital Asset Protection Radar</h1>
           <p style={{ color: '#94a3b8', margin: '5px 0' }}>AI-Powered Spatiotemporal Fingerprinting Network</p>
         </div>
         
-        {/* --- SMALL, RIGHT-ALIGNED KIRO REDIRECT BUTTON --- */}
+        {/* --- LOCKED WIDTH BUTTON --- */}
         <a 
-          href="https://YOUR-KIRO-WEBSITE-URL.com" 
+          href="https://sport-shield-ai.onrender.com/" 
           target="_blank" 
           rel="noopener noreferrer"
-          className="btn"
           style={{ 
               display: 'inline-block',
+              width: 'max-content',      /* Forces it to only be as wide as the text */
+              flex: '0 0 auto',          /* Prevents flexbox from stretching it */
+              whiteSpace: 'nowrap',      /* Keeps text on one line */
               textDecoration: 'none', 
               background: '#eab308', 
               color: '#000', 
               fontWeight: 'bold', 
-              padding: '10px 20px', 
+              padding: '10px 24px', 
               borderRadius: '4px',
               fontSize: '14px',
-              border: '1px solid #eab308'
+              border: '2px solid #eab308',
+              cursor: 'pointer'
           }}
         >
-          Return to Dashboard ↗
+          RETURN TO DASHBOARD ↗
         </a>
       </header>
 
