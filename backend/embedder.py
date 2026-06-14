@@ -46,7 +46,7 @@ class VideoFingerprinter:
         # -----------------------------------------
 
         pil_image = Image.fromarray(image_rgb)
-
+        #this layer helps process the tensors, so if u face problems in frame getting unobserved of-sorts..look herre
         # Preprocess to tensor
         input_tensor = self.preprocess(pil_image)
         input_batch = input_tensor.unsqueeze(0).to(self.device)
