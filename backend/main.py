@@ -202,7 +202,14 @@ async def websocket_scan(websocket: WebSocket):
 async def scan_youtube_url(req: YTRequest):
     global matcher, fingerprinter
 
-    ydl_opts = {'format': 'best[ext=mp4]', 'quiet': True}
+    # INJECTED: Browser impersonation to bypass TLS fingerprinting blocks on Vercel
+    ydl_opts = {
+        'format': 'best[ext=mp4]', 
+        'quiet': True,
+        'impersonate': 'chrome',
+        'legacy_server_connect': True,
+        'nocheckcertificate': True
+    }
     try:
         # 1. Bypass Google's CORS and rip the raw stream URL
         # 1. Bypass Google's CORS and rip the raw stream URL + Metadata
@@ -291,11 +298,16 @@ class YTSearchRequest(BaseModel):
 async def scan_youtube_search(req: YTSearchRequest):
     global matcher, fingerprinter
 
-    # ytsearch3 means "Search YouTube and grab the top 3 results"
     search_query = f"ytsearch3:{req.query}"
 
-    # Phase 1: Extract the URLs of the top 3 videos without downloading them
-    ydl_opts_search = {'extract_flat': True, 'quiet': True}
+    # INJECTED: Browser impersonation for flat search
+    ydl_opts_search = {
+        'extract_flat': True, 
+        'quiet': True,
+        'impersonate': 'chrome',
+        'legacy_server_connect': True,
+        'nocheckcertificate': True
+    }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts_search) as ydl:
