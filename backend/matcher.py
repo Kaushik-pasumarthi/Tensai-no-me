@@ -25,7 +25,7 @@ class VideoMatcher:
             }
             self.current_id += 1
         print(f"Added {len(frame_embeddings)} frames from '{video_name}' to the vault.")
-
+#to switch no of neighbors to look at, change here
     def query_suspect_frame(self, suspect_embedding, base_min_threshold=0.65):
         norm_embedding = self._normalize(suspect_embedding)
 
@@ -40,7 +40,7 @@ class VideoMatcher:
 
         best_score = valid_scores[0]
         best_match_id = int(indices[0][0])
-
+        #dynamic thresold helps change the background noise cutoff accordingly
         # 3. DYNAMIC THRESHOLD LOGIC: Separate Signal from Noise
         if len(valid_scores) > 1:
             # Calculate background noise using only the remaining neighbors (exclude the #1 best match)
