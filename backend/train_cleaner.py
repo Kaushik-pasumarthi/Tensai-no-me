@@ -44,7 +44,7 @@ class SyntheticPirateDataset(Dataset):
         noisy_image = torch.clamp(noisy_image, 0., 1.)  # Keep pixel values valid
 
         return noisy_image
-
+#check noisy_image for understanding the parallel tensor split
     def __len__(self):
         return len(self.image_paths)
 
